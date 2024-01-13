@@ -1,0 +1,107 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.0.2
+Date: 07. 09. 2022.
+  Info:
+    - Add compatibility with SE
+---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 13. 08. 2022.
+  Info:
+    - Add filter to smart chests. Simplify management of multiple different items in chest
+    - Add circuit control to smart chests to read directly the content of a chest 
+    - update sample to use filters and circuit controls
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 27. 02. 2022.
+  Info:
+    - Add a settings to change max range of merging operation
+---------------------------------------------------------------------------------------------------
+Version: 0.0.15
+Date: 14. 12. 2021.
+  Info:
+    - Fix crash when using pipette
+---------------------------------------------------------------------------------------------------
+Version: 0.0.14
+Date: 22. 08. 2021.
+  Info:
+    - copy/paste/blueprint save and restore the group of linked chest
+---------------------------------------------------------------------------------------------------
+Version: 0.0.13
+Date: 22. 08. 2021.
+  Info:
+    - Fix crash on drag_target
+---------------------------------------------------------------------------------------------------
+Version: 0.0.12
+Date: 18. 08. 2021.
+  Info:
+    - Fix remaining items when mining chest
+---------------------------------------------------------------------------------------------------
+Version: 0.0.11
+Date: 16. 08. 2021.
+  Info:
+    - Add setting to change count of signal in chest reader
+---------------------------------------------------------------------------------------------------
+Version: 0.0.10
+Date: 15. 08. 2021.
+  Info:
+    - Fix crash when using pipette on a content reader
+---------------------------------------------------------------------------------------------------
+Version: 0.0.9
+Date: 07. 08. 2021.
+  Info:
+    - Fix invalid research effect
+    - Fix gui in version migration
+    - Fix desync in multiplayer
+---------------------------------------------------------------------------------------------------
+Version: 0.0.8
+Date: 07. 08. 2021.=
+  Info:
+    - Allow generic chest to morph to a coloured chest when put on map
+    - Change smartchest panel to select the chest which will be used to morph from a generic chest
+    - Allow coloured chest to be mined to a generic chest (must be allowed by a global settings)
+    - Add autolink option to have new chest linked to previous one
+    - Change pipette tool to manage autolink option, and have new chest linked to existing one (under pipette)
+    - Add copy/paste (shift right click / shift left click) from an existing chest to link another chest
+---------------------------------------------------------------------------------------------------
+Version: 0.0.7
+Date: 08. 05. 2021.
+  Info:
+    - Add a settings option to mine smart chest info an inventory item which takes only one slot in the player inventory and can be placed on the map with the full content restored
+    - Add a settings option to pack exceeding items during merging in an inventory item and put it in the player inventory
+  Bugs:
+    - Fix transfer of special items during merging and mining (blueprint, ...)
+---------------------------------------------------------------------------------------------------
+Version: 0.0.6
+Date: 05. 05. 2021.
+  Info:
+    - Add option for merging chest: transfer exceeding items to player
+    - The content of a mined chest is transfered to the player if there is no more connected chests
+---------------------------------------------------------------------------------------------------
+Version: 0.0.5
+Date: 03. 05. 2021.
+  Info:
+    - Set slot limitations when merging chests
+---------------------------------------------------------------------------------------------------
+Version: 0.0.4
+Date: 29. 04. 2021.
+  Info:
+    - Add player settings to control the excess of items during a merge
+---------------------------------------------------------------------------------------------------
+Version: 0.0.3
+Date: 28. 04. 2021.
+  Info:
+    - Add configuration for the count of slot
+    - Add shift on linking tool to add to existing link
+---------------------------------------------------------------------------------------------------
+Version: 0.0.2
+Date: 26. 04. 2021.
+  Info:
+    - Add chest content reader
+    - Add visual rendering of linked chest
+    - Add filter to select the color of chest linked by the linking tool
+    - Add new recipes to buid chest
+---------------------------------------------------------------------------------------------------
+Version: 0.0.1
+Date: 18. 04. 2021.
+  Info:
+    - Initial release
