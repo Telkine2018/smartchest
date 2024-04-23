@@ -3,7 +3,7 @@ local mod_gui = require("mod-gui")
 local chest_count = 8
 local chest_prefix = "sc-chest-"
 local chest_prefix_filter = "^sc%-chest%-"
-local select_radius = settings.startup["sc-max-range"].value
+local select_radius = settings.startup["sc-max-range"].value --[[@as integer]]
 local tool_filter = {}
 local generic_chest_index = 1
 
@@ -289,6 +289,7 @@ local function process_merge(player, entities, selector, id)
                             end
                         end
                     end
+                    ---@cast item_inv -nil
                     item_inv.insert(src_stack)
                 end
                 inv.destroy()
@@ -800,9 +801,10 @@ on_init_gui = function()
     end
 end
 
+---@param player LuaPlayer
 close_filter_panel = function(player)
 
-    local panel = player.gui.left.sc_filter_panel
+    local panel = player.gui.left["sc_filter_panel"]
     if panel then panel.destroy() end
 end
 
@@ -925,7 +927,7 @@ local function on_gui_click(event)
     local element = event.element
     local element_name = element.name
     if element_name == sc_button_name then
-        if player.gui.left.sc_filter_panel then
+        if player.gui.left["sc_filter_panel"] then
             close_filter_panel(player)
         else
             create_filter_panel(player)
