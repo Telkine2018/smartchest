@@ -1,4 +1,5 @@
 local mod_gui = require("mod-gui")
+local tools = require "scripts.tools"
 
 local chest_count = 8
 local chest_prefix = "sc-chest-"
@@ -20,45 +21,21 @@ local use_generic = settings.startup["sc-use-generic"].value
 
 local on_init_gui
 
-local log_index = 1
-local function debug(msg)
-    if not tracing then return end
-    msg = "[" .. log_index .. "] " .. msg
-    log_index = log_index + 1
-    for _, player in pairs(game.players) do
-        player.print(msg)
-        log(msg)
-    end
-end
-
-local function get_child(parent, name)
-    for _, e in pairs(parent.children) do
-
-        if e.name == name then return e end
-        local child = get_child(e, name)
-        if child then return child end
-    end
-    return nil
-end
+local debug = tools.debug
+local get_child = tools.get_child
+local get_id = tools.get_id
+local get_vars = tools.get_vars
 
 local close_filter_panel
-
-local function get_id()
-    local id = global.id or 1
-    id = id + 1
-    global.id = id
-
-    return id
-end
 
 local function purge_with_name(player, name)
     local map = {}
     local force = player.force
     for _, surface in pairs(game.surfaces) do
-        local chests = surface.find_entities_filtered {name = name}
+        local chests = surface.find_entities_filtered { name = name }
         for _, c in pairs(chests) do map[c.link_id] = true end
     end
-    for id = 1, global.id do
+    for id = 1, storage.id do
         local inv = force.get_linked_inventory(name, id)
         if inv and not map[id] then inv.destroy() end
     end
@@ -71,87 +48,78 @@ local function purge(player)
     end
 end
 
-local function get_vars(player)
-    local players = global.players
-    if not players then
-        players = {}
-        global.players = players
-    end
-    local vars = players[player.index]
-    if not vars then
-        vars = {}
-        players[player.index] = vars
-    end
-    return vars
-end
-
 local local_purge_index = 1
 
 local function get_genkey_id(genkey)
-    local genkeys = global.genkeys
+    local genkeys = storage.genkeys
     if not genkeys then
         genkeys = {}
-        global.genkeys = genkeys
+        storage.genkeys = genkeys
     end
 
     local slot = genkeys[genkey]
-	local id
+    local id
     if not slot then
-		local tick = game.tick
-        local last_scan = global.genkeys_scan
+        local tick = game.tick
+        local last_scan = storage.genkeys_scan
         local period = 1 * 60 * 60
         if not last_scan then
-            global.genkeys_scan = tick
+            storage.genkeys_scan = tick
         elseif tick - last_scan > period then
-			local newkeys = {}
-			for key, s in pairs(genkeys) do
-				if s.tick and s.tick > tick - period then
-					newkeys[key] = s
-				end
-			end
-			genkeys = newkeys
-			global.genkeys = newkeys
-            global.genkeys_scan = tick
+            local newkeys = {}
+            for key, s in pairs(genkeys) do
+                if s.tick and s.tick > tick - period then
+                    newkeys[key] = s
+                end
+            end
+            genkeys = newkeys
+            storage.genkeys = newkeys
+            storage.genkeys_scan = tick
         end
 
         id = get_id()
-		slot = { id=id, tick=tick }
+        slot = { id = id, tick = tick }
         genkeys[genkey] = slot
     end
 
     return slot.id
 end
 
+---@param player LuaPlayer
+---@param entities LuaEntity[]
+---@param selector fun(LuaEntity):any
+---@param id number?
 local function process_merge(player, entities, selector, id)
-
     if not id then id = get_id() end
     local inv_to_clear = {}
     local chest_to_restore = {}
+    ---@type {[integer]:number}
     local link_ids = {}
 
-    local overflow =
-        settings.get_player_settings(player.index)["sc-overflow-type"].value
+    local overflow = settings.get_player_settings(player.index)["sc-overflow-type"].value
     local abort_if_excess = overflow == "abort"
     local spill = overflow == "spill"
     local to_player = overflow == "to_player"
     local to_item = overflow == "to_item"
     local abort = false
+    ---@type {[string]:{name:string,id:integer}}
     local processed = {}
 
     local limitations = {}
+    ---@type {[string]:LuaInventory}
     local inv_map = {}
-    local item_prototypes = game.item_prototypes
+    local item_prototypes = prototypes.item
     for _, chest in pairs(entities) do
         if chest.valid and selector(chest) then
             local old_id = chest.link_id
             local key = chest.name .. "/" .. old_id
             if not processed[key] then
-
                 table.insert(chest_to_restore, chest)
                 local inv = chest.get_inventory(defines.inventory.chest)
+                ---@cast inv -nil
                 local bar = inv.get_bar()
                 local content = inv.get_contents()
-                processed[key] = {name = chest.name, id = old_id}
+                processed[key] = { name = chest.name, id = old_id }
                 link_ids[chest.unit_number] = chest.link_id
                 if limitations[chest.name] == nil then
                     limitations[chest.name] = bar
@@ -161,10 +129,11 @@ local function process_merge(player, entities, selector, id)
                 end
                 chest.link_id = id
                 inv = chest.get_inventory(defines.inventory.chest)
+                ---@cast inv -nil
 
                 local has_non_item
-                for name, count in pairs(content) do
-                    local proto = item_prototypes[name]
+                for _, item in pairs(content) do
+                    local proto = item_prototypes[item.name]
                     if proto.type ~= "item" then
                         has_non_item = true
                         break
@@ -172,18 +141,20 @@ local function process_merge(player, entities, selector, id)
                 end
 
                 local function get_inv()
-                    local inv = inv_map[chest.name]
-                    if inv then return inv end
-                    inv = game.create_inventory(2000)
-                    inv_map[chest.name] = inv
-                    return inv
+                    local inv2 = inv_map[chest.name]
+                    if inv2 then return inv2 end
+                    inv2 = game.create_inventory(2000)
+                    inv_map[chest.name] = inv2
+                    return inv2
                 end
 
                 if not has_non_item then
-                    for name, count in pairs(content) do
+                    for _, item in pairs(content) do
+                        local count = item.count
                         local inv_count = inv.insert {
-                            name = name,
-                            count = count
+                            name = item.name,
+                            count = item.count,
+                            quality = item.quality
                         }
                         if inv_count < count then
                             count = count - inv_count
@@ -191,34 +162,38 @@ local function process_merge(player, entities, selector, id)
                                 abort = true
                                 break
                             elseif spill then
-                                player.surface.spill_item_stack(player.position,
-                                                                {
-                                    name = name,
-                                    count = count
-                                }, false, player.force, false)
+                                player.surface.spill_item_stack { position = player.position,
+                                    stack = {
+                                        name = item.name,
+                                        count = item.count,
+                                        quality = item.quality
+                                    }, enable_looted = false,
+                                    force = player.force,
+                                    allow_belts = false }
                             elseif to_player then
-                                local player_inv =
-                                    player.get_inventory(defines.inventory
-                                                             .character_main)
+                                local player_inv = player.get_inventory(defines.inventory.character_main)
+                                ---@cast player_inv -nil
                                 inv_count = player_inv.insert {
-                                    name = name,
-                                    count = count
+                                    name = item.name,
+                                    count = item.count,
+                                    quality = item.quality
                                 }
                                 if inv_count < count then
-                                    player.surface.spill_item_stack(
-                                        player.position, {
-                                            name = name,
-                                            count = count - inv_count
-                                        }, false, player.force, false)
+                                    player.surface.spill_item_stack {
+                                        position = player.position, stack = {
+                                        name = item.name,
+                                        count = item.count - inv_count,
+                                        quality = item.quality
+                                    }, enable_looted = false, force = player.force, allow_belts = false }
                                 end
                             elseif to_item then
-                                get_inv().insert {name = name, count = count}
+                                get_inv().insert { name = item.name, count = item.count }
                             end
                         end
                     end
                 else
-                    local src_inv = player.force.get_linked_inventory(
-                                        chest.name, old_id)
+                    local src_inv = player.force.get_linked_inventory(chest.name, old_id)
+                    ---@cast src_inv -nil
                     for i = 1, #inv do
                         local stack = src_inv[i]
                         if stack.valid_for_read then
@@ -230,20 +205,19 @@ local function process_merge(player, entities, selector, id)
                                     break
                                 elseif spill then
                                     stack.count = count - inv_count
-                                    player.surface.spill_item_stack(
-                                        player.position, stack, false,
-                                        player.force, false)
+                                    player.surface.spill_item_stack {
+                                        position = player.position, stack = stack, enable_looted = false,
+                                        forece = player.force, allow_belts = false }
                                 elseif to_player then
-                                    local player_inv =
-                                        player.get_inventory(defines.inventory
-                                                                 .character_main)
+                                    local player_inv = player.get_inventory(defines.inventory.character_main)
+                                    ---@cast player_inv -nil
                                     stack.count = count - inv_count
                                     inv_count = player_inv.insert(stack)
                                     if inv_count < stack.count then
                                         stack.count = stack.count - inv_count
-                                        player.surface.spill_item_stack(
-                                            player.position, stack, false,
-                                            player.force, false)
+                                        player.surface.spill_item_stack {
+                                            position = player.position, stack = stack, enable_looted = false,
+                                            force = player.force, allow_belts = false }
                                     end
                                 elseif to_item then
                                     stack.count = count - inv_count
@@ -262,14 +236,13 @@ local function process_merge(player, entities, selector, id)
 
     if not abort then
         if to_item then
-            local player_inv = player.get_inventory(defines.inventory
-                                                        .character_main)
+            local player_inv = player.get_inventory(defines.inventory.character_main)
+            ---@cast player_inv -nil
             local item_inv
             local temp = game.create_inventory(2000)
             for name, inv in pairs(inv_map) do
                 item_inv = nil
-                local item_name = "sc-chest-with-content-" ..
-                                      string.sub(name, #"sc-chest-" + 1)
+                local item_name = "sc-chest-with-content-" .. string.sub(name, #"sc-chest-" + 1)
                 for i = 1, #inv do
                     local src_stack = inv[i]
                     if not src_stack.valid_for_read or src_stack.count == 0 then
@@ -281,11 +254,11 @@ local function process_merge(player, entities, selector, id)
                             chest_stack.count = chest_stack.count - 1
                             local item_stack, index = temp.find_empty_stack()
                             if item_stack then
-                                temp.insert {name = item_name, count = 1}
+                                temp.insert { name = item_name, count = 1 }
                                 item_stack = temp[index]
                                 item_inv =
                                     item_stack.get_inventory(defines.inventory
-                                                                 .item_main)
+                                        .item_main)
                             end
                         end
                     end
@@ -297,8 +270,8 @@ local function process_merge(player, entities, selector, id)
             local item_stack, index = temp.find_empty_stack()
             for i = 1, index - 1 do
                 if player_inv.insert(temp[i]) == 0 then
-                    player.surface.spill_item_stack(player.position, temp[i],
-                                                    false, player.force, false)
+                    player.surface.spill_item_stack { position = player.position, stack = temp[i],
+                        enable_looted = false, force = player.force, allow_belts = false }
                 end
             end
             temp.destroy()
@@ -306,14 +279,16 @@ local function process_merge(player, entities, selector, id)
         local force = player.force
         for _, r in pairs(processed) do
             local inv = force.get_linked_inventory(r.name, r.id)
+            ---@cast inv -nil
             inv.clear()
         end
         for name, limitation in pairs(limitations) do
             local inv = force.get_linked_inventory(name, id)
+            ---@cast inv -nil
             inv.set_bar(limitation)
         end
     else
-        player.print {"messages.abort_merge"}
+        player.print { "messages.abort_merge" }
         for _, chest in pairs(chest_to_restore) do
             chest.link_id = link_ids[chest.unit_number]
         end
@@ -322,11 +297,9 @@ local function process_merge(player, entities, selector, id)
     purge_with_name(player, chest_prefix .. local_purge_index)
     local_purge_index = local_purge_index + 1
     if local_purge_index > chest_count then local_purge_index = 1 end
-
 end
 
 local function on_selected_area(event)
-
     local player = game.players[event.player_index]
 
     if event.item ~= "sc-merge-tool" then return end
@@ -337,8 +310,8 @@ local function on_selected_area(event)
     process_merge(player, entities, selector)
 end
 
+---@param event EventData.on_player_alt_selected_area
 local function on_player_alt_selected_area(event)
-
     local player = game.players[event.player_index]
 
     if event.item ~= "sc-merge-tool" then return end
@@ -381,12 +354,12 @@ local function on_player_alt_selected_area(event)
 end
 
 script.on_event(defines.events.on_player_selected_area, on_selected_area)
-script.on_event(defines.events.on_player_alt_selected_area,
-                on_player_alt_selected_area)
+script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
 
+---@param e LuaEntity
 local function add_to_reader_map(e)
     local index = e.unit_number % 20
-    local reader_map = global.reader_map
+    local reader_map = storage.reader_map
     local index_map = reader_map[index]
     if not index_map then
         index_map = {}
@@ -396,7 +369,7 @@ local function add_to_reader_map(e)
 end
 
 local function on_built(evt)
-    local e = evt.created_entity or evt.entity
+    local e = evt.entity
     if not e or not e.valid then return end
 
     local autolink
@@ -419,7 +392,7 @@ local function on_built(evt)
             force = force,
             position = position
         }
-        r.tags = {link_id = link_id, sc_chest = name, genkey = genkey}
+        r.tags = { link_id = link_id, sc_chest = name, genkey = genkey }
         return
     end
 
@@ -455,7 +428,7 @@ local function on_built(evt)
         local id
         local genkey = evt.tags and evt.tags.genkey
         if genkey then
-			id = get_genkey_id(genkey)
+            id = get_genkey_id(genkey)
         elseif autolink then
             id = vars[e.name]
         end
@@ -466,7 +439,6 @@ local function on_built(evt)
         e.link_id = id
         local stack = evt.stack
         if stack and stack.is_item_with_inventory then
-
             local from_inv = stack.get_inventory(defines.inventory.item_main)
             local inv = e.get_inventory(defines.inventory.chest)
             for i = 1, #from_inv do
@@ -481,12 +453,12 @@ local function on_built(evt)
     end
 end
 
+---@param reader LuaEntity
 local function process_reader(reader)
-
-    local chest = global.reader_chest[reader.unit_number]
+    local chest = storage.reader_chest[reader.unit_number]
 
     if chest and not chest.valid then
-        global.reader_chest[reader.unit_number] = nil
+        storage.reader_chest[reader.unit_number] = nil
         chest = nil
     end
 
@@ -510,37 +482,34 @@ local function process_reader(reader)
         }
         if #entities == 0 then return end
         chest = entities[1]
-        global.reader_chest[reader.unit_number] = chest
+        storage.reader_chest[reader.unit_number] = chest
     end
 
     local inv = chest.get_inventory(defines.inventory.chest)
+    ---@cast inv -nil
     local content = inv.get_contents()
-    local cb = reader.get_control_behavior()
+    local cb = reader.get_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
     if not cb then return end
-    local max = cb.signals_count
-    local index = 1
-    local parameters = {}
-    for name, count in pairs(content) do
-        if index > max then break end
-        table.insert(parameters, {
-            signal = {type = "item", name = name},
-            count = count,
-            index = index
+    ---@type LogisticFilter[]
+    local filters = {}
+    for _, item in pairs(content) do
+        table.insert(filters, {
+            value = { type = "item", name = item.name, quality = "normal", comparator = "=" },
+            min = item.count,
         })
-        index = index + 1
     end
-    cb.parameters = parameters
+    cb.get_section(1).filters = filters
 end
 
 local function on_tick()
     local index = game.tick % 20
-    local readers = global.reader_map[index]
+    local readers = storage.reader_map[index]
 
     if readers then
         for id, reader in pairs(readers) do
             if not reader.valid then
                 readers[id] = nil
-                global.reader_chest[id] = nil
+                storage.reader_chest[id] = nil
                 return
             end
             process_reader(reader)
@@ -550,28 +519,26 @@ end
 
 for i = 1, chest_count do
     local name = chest_prefix .. i
-    table.insert(entity_filter, {filter = 'name', name = name})
-    table.insert(chest_filter, {filter = 'name', name = name})
+    table.insert(entity_filter, { filter = 'name', name = name })
+    table.insert(chest_filter, { filter = 'name', name = name })
     chest_filter_set[name] = true
     tool_filter[name] = true
 end
 
-table.insert(entity_filter, {filter = 'name', name = "sc-chest-reader"})
-table.insert(entity_filter, {filter = 'name', name = "sc-chest-core"})
-table.insert(entity_filter, {filter = 'name', name = "entity-ghost"})
+table.insert(entity_filter, { filter = 'name', name = "sc-chest-reader" })
+table.insert(entity_filter, { filter = 'name', name = "sc-chest-core" })
+table.insert(entity_filter, { filter = 'name', name = "entity-ghost" })
 
 local function on_configuration_changed(e)
-
     local changes = e.mod_changes["smartchest"]
     if changes then
-
-        if not global.reader_chest then global.reader_chest = {} end
-        if not global.reader_map then global.reader_map = {} end
-        if global.readers then
-            for _, reader in pairs(global.readers) do
+        if not storage.reader_chest then storage.reader_chest = {} end
+        if not storage.reader_map then storage.reader_map = {} end
+        if storage.readers then
+            for _, reader in pairs(storage.readers) do
                 add_to_reader_map(reader)
             end
-            global.readers = nil
+            storage.readers = nil
         end
         if changes.old_version == "0.0.1" and changes.new_version then
             for _, force in pairs(game.forces) do
@@ -586,7 +553,7 @@ local function on_configuration_changed(e)
         for _, player in pairs(game.players) do
             close_filter_panel(player)
             get_vars(player).sc_show_linked_rectangle = true
-            
+
             local button_flow = mod_gui.get_button_flow(player)
             local b = button_flow[old_sc_button_name]
             if b then
@@ -607,12 +574,13 @@ script.on_event(defines.events.script_raised_revive, on_built, entity_filter)
 script.on_event(defines.events.on_tick, on_tick)
 
 local function on_init()
-    global.reader_chest = {}
-    global.reader_map = {}
+    storage.reader_chest = {}
+    storage.reader_map = {}
 end
 
 script.on_init(on_init)
 
+---@param e EventData.on_player_mined_entity
 local function on_mined_entity(e)
     local entity = e.entity
 
@@ -628,17 +596,18 @@ local function on_mined_entity(e)
     end
 
     local inv = entity.get_inventory(defines.inventory.chest)
+    ---@cast inv -nil
     local content = inv.get_contents()
 
     if next(content) == nil then return end
 
-    local item_prototypes = game.item_prototypes
+    local item_prototypes = prototypes.item
     local export_as_item = settings.global["sc-mining-type"].value ==
-                               "item_with_tag"
+        "item_with_tag"
 
+    ---@type LuaInventory
     local to_inv
     if export_as_item then
-
         local chest_index = tonumber(string.sub(entity.name, #"sc-chest-" + 1))
         e.buffer.clear()
         e.buffer.insert {
@@ -650,18 +619,19 @@ local function on_mined_entity(e)
     else
         to_inv = e.buffer
     end
-
+    
     local has_non_item = false
-    for name, count in pairs(content) do
-        local proto = item_prototypes[name]
+    for _, item in pairs(content) do
+        local proto = item_prototypes[item.name]
         if proto.type ~= "item" then
             has_non_item = true
             break
         end
     end
+    ---@cast to_inv -nil
     if not has_non_item then
-        for name, count in pairs(content) do
-            to_inv.insert {name = name, count = count}
+        for _, item in pairs(content) do
+            to_inv.insert { name = item.name, count = item.count, quality = item.quality }
         end
     else
         for i = 1, #inv do
@@ -673,26 +643,26 @@ local function on_mined_entity(e)
 end
 
 script.on_event(defines.events.on_player_mined_entity, on_mined_entity,
-                chest_filter)
+    chest_filter)
 script.on_event(defines.events.on_robot_mined_entity, on_mined_entity,
-                chest_filter)
+    chest_filter)
 
 -------------------------------------------------------------------------------------
 
 local tints = {
-    {1, 0, 0, 1}, {1, 0.5, 0, 1}, {1, 1, 0, 1}, {1, 0, 1, 1}, {0, 1, 0, 1},
-    {0.5, 0, 0.25, 1}, {0, 0, 1, 1}, {0, 1, 1, 1}
+    { 1,   0, 0,    1 }, { 1, 0.5, 0, 1 }, { 1, 1, 0, 1 }, { 1, 0, 1, 1 }, { 0, 1, 0, 1 },
+    { 0.5, 0, 0.25, 1 }, { 0, 0, 1, 1 }, { 0, 1, 1, 1 }
 }
 
+---@param e EventData.on_selected_entity_changed
 local function on_selected_entity_changed(e)
-
     local player = game.players[e.player_index]
     local entity = player.selected
 
     local vars = get_vars(player)
     if vars.previous_selected_graphics then
         for _, id in ipairs(vars.previous_selected_graphics) do
-            rendering.destroy(id)
+            id.destroy()
         end
         vars.previous_selected_graphics = nil
     end
@@ -719,13 +689,11 @@ local function on_selected_entity_changed(e)
     local width = 4
     local offset = 0.2
     for _, connected in ipairs(connected_list) do
-
         if link_id == connected.link_id then
-
             local pos = connected.position
             if not min then
-                min = {x = pos.x, y = pos.y}
-                max = {x = pos.x, y = pos.y}
+                min = { x = pos.x, y = pos.y }
+                max = { x = pos.x, y = pos.y }
             else
                 if pos.x < min.x then min.x = pos.x end
                 if pos.y < min.y then min.y = pos.y end
@@ -735,22 +703,22 @@ local function on_selected_entity_changed(e)
 
             if entity ~= connected then
                 local function add_mark(pos)
-                    local id = rendering.draw_circle {
+                    local renderObject = rendering.draw_circle {
                         color = color,
                         radius = radius,
                         width = width,
                         surface = surface,
                         player = player,
-                        target = {pos.x - offset, pos.y}
+                        target = { pos.x - offset, pos.y }
                     }
-                    table.insert(vars.previous_selected_graphics, id)
+                    table.insert(vars.previous_selected_graphics, renderObject)
                     local id = rendering.draw_circle {
                         color = color,
                         radius = radius,
                         width = width,
                         surface = surface,
                         player = player,
-                        target = {pos.x + offset, pos.y}
+                        target = { pos.x + offset, pos.y }
                     }
                     table.insert(vars.previous_selected_graphics, id)
                 end
@@ -762,20 +730,20 @@ local function on_selected_entity_changed(e)
     end
 
     if vars.sc_show_linked_rectangle and count >= 1 then
-        local id = rendering.draw_rectangle {
+        local renderObject = rendering.draw_rectangle {
             color = color,
             surface = surface,
             player = player,
             width = 3,
-            left_top = {min.x - 1, min.y - 1},
-            right_bottom = {max.x + 1, max.y + 1}
+            left_top = { min.x - 1, min.y - 1 },
+            right_bottom = { max.x + 1, max.y + 1 }
         }
-        table.insert(vars.previous_selected_graphics, id)
+        table.insert(vars.previous_selected_graphics, renderObject)
     end
 end
 
 script.on_event(defines.events.on_selected_entity_changed,
-                on_selected_entity_changed)
+    on_selected_entity_changed)
 
 -------------------------------------------------------------------------------------
 
@@ -803,16 +771,15 @@ end
 
 ---@param player LuaPlayer
 close_filter_panel = function(player)
-
     local panel = player.gui.left["sc_filter_panel"]
     if panel then panel.destroy() end
 end
 
-local generic_default_size = {height = 40, with = 40}
-local generic_selected_size = {height = 50, with = 50}
+local generic_default_size = { height = 40, with = 40 }
+local generic_selected_size = { height = 50, with = 50 }
 
+---@param player LuaPlayer
 local function create_filter_panel(player)
-
     close_filter_panel(player)
 
     local panel = player.gui.left.add {
@@ -821,11 +788,11 @@ local function create_filter_panel(player)
         direction = "vertical"
     }
 
-    local titlebar = panel.add {type = "flow", direction = "horizontal"}
+    local titlebar = panel.add { type = "flow", direction = "horizontal" }
     local title = titlebar.add {
         type = "label",
         style = "caption_label",
-        caption = {"smart_space_panel.title"}
+        caption = { "smart_space_panel.title" }
     }
     local handle = titlebar.add {
         type = "empty-widget",
@@ -847,13 +814,13 @@ local function create_filter_panel(player)
         type = "sprite-button",
         name = "sc_close_filter",
         style = "frame_action_button",
-        sprite = "utility/close_white",
-        mouse_button_filter = {"left"}
+        sprite = "utility/close",
+        mouse_button_filter = { "left" }
     }
     closeButton.style.left_margin = 2
 
     for i = 1, 8 do
-        local flow = panel.add {type = "flow", direction = "horizontal"}
+        local flow = panel.add { type = "flow", direction = "horizontal" }
         local name = chest_prefix .. i
         local state = tool_filter[name] == true
         -- flow.add{type="sprite", sprite="item/" .. name}
@@ -861,29 +828,28 @@ local function create_filter_panel(player)
             type = "sprite-button",
             name = "sc_generic_" .. i,
             sprite = "item/" .. name,
-            mouse_button_filter = {"left"}
+            mouse_button_filter = { "left" }
         }
         flow.add {
             type = "checkbox",
             name = name,
-            caption = {"entity-name." .. name},
+            caption = { "entity-name." .. name },
             state = state
         }
-
     end
 
-    panel.add {type = "line"}
+    panel.add { type = "line" }
     local vars = get_vars(player)
     panel.add {
         type = "checkbox",
         name = "sc-autolink",
-        caption = {"smart_space_panel.sc_autolink"},
+        caption = { "smart_space_panel.sc_autolink" },
         state = (vars.autolink == true)
     }
     panel.add {
         type = "checkbox",
         name = "sc_show_linked_rectangle",
-        caption = {"smart_space_panel.sc_show_linked_rectangle"},
+        caption = { "smart_space_panel.sc_show_linked_rectangle" },
         state = (vars.sc_show_linked_rectangle == true)
     }
 
@@ -895,11 +861,14 @@ local function create_filter_panel(player)
     end
 end
 
+---@param player LuaPlayer
+---@param index integer?
+---@param clear_id boolean?
 local function select_chest(player, index, clear_id)
     if not index then return end
 
     local b = get_child(player.gui.top, sc_button_name)
-    if b then 
+    if b then
         b.sprite = "item/sc-chest-" .. index
         b.clicked_sprite = b.sprite
     end
@@ -908,21 +877,25 @@ local function select_chest(player, index, clear_id)
     if clear_id then vars["sc-chest-" .. index] = nil end
 end
 
+---@param player LuaPlayer
+---@param chest_name string?
+---@return boolean
 local function set_cursor_to_chest(player, chest_name)
     local inv = player.get_main_inventory()
+    ---@cast inv -nil
     if not chest_name then chest_name = "sc-chest-core" end
-    if inv.remove {name = chest_name, count = 1} == 1 then
+    if inv.remove { name = chest_name, count = 1 } == 1 then
         inv.insert(player.cursor_stack)
         player.cursor_stack.clear()
-        player.cursor_stack.set_stack {name = chest_name, count = 1}
+        player.cursor_stack.set_stack { name = chest_name, count = 1 }
         return true
     end
 
     return false
 end
 
+---@param event EventData.on_gui_click
 local function on_gui_click(event)
-
     local player = game.players[event.player_index]
     local element = event.element
     local element_name = element.name
@@ -958,14 +931,17 @@ end
 
 script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_gui_checked_state_changed,
-                on_gui_checked_state_changed)
+    on_gui_checked_state_changed)
 
+---@param e EventData.on_research_finished
 local function on_research_finished(e)
     if e.research.name == "sc-chest" then on_init_gui(); end
 end
 
 script.on_event(defines.events.on_research_finished, on_research_finished)
 
+
+---@param event EventData.on_player_pipette
 local function on_player_pipette(event)
     local player = game.players[event.player_index]
     local name = event.item.name
@@ -994,20 +970,22 @@ end
 
 script.on_event(defines.events.on_player_pipette, on_player_pipette)
 
+---@param evt EventData.on_pre_entity_settings_pasted
 local function on_pre_entity_settings_pasted(evt)
     local source = evt.source
     local dest = evt.destination
 
     if not source.name:find(chest_prefix_filter) or
-        not dest.name:find(chest_prefix_filter) then return end
+        not dest.name:find(chest_prefix_filter) then
+        return
+    end
 
     if source.name == dest.name then
         local player = game.players[evt.player_index]
-        process_merge(player, {dest}, function() return true end, source.link_id)
+        process_merge(player, { dest }, function() return true end, source.link_id)
         get_vars(player)[source.name] = source.link_id
     end
 end
 
 script.on_event(defines.events.on_pre_entity_settings_pasted,
-                on_pre_entity_settings_pasted)
-
+    on_pre_entity_settings_pasted)

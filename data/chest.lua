@@ -26,18 +26,18 @@ data:extend
 		place_result = "sc-chest-core"
 	}
 	, {
-		type = "recipe",
-		name = "sc-chest-core",
-		enabled = false,
-		ingredients =
-		{
-			{ "iron-plate", 20 },
-			{ "steel-plate", 10 },
-			{ "electronic-circuit", 5 },
-			{ "copper-cable", 10 }
-		},
-		result = "sc-chest-core"
-	}
+	type = "recipe",
+	name = "sc-chest-core",
+	enabled = false,
+	ingredients =
+	{
+		{ type = "item", name = "iron-plate",         amount = 20 },
+		{ type = "item", name = "steel-plate",        amount = 10 },
+		{ type = "item", name = "electronic-circuit", amount = 5 },
+		{ type = "item", name = "copper-cable",       amount = 10 }
+	},
+	results = { { type = "item", name = "sc-chest-core", amount = 1 } }
+}
 
 }
 
@@ -60,8 +60,8 @@ chest_core.allow_copy_paste = false
 chest_core.minable = { hardness = 0.2, mining_time = 0.2, result = chest_core.name }
 chest_core.gui_mode = "none"
 
-chest_core.picture.layers[1].filename = "__smartchest__/graphics/entity/chest.png"
-chest_core.picture.layers[1].hr_version.filename = "__smartchest__/graphics/entity/hr-chest.png"
+-- chest_core.picture.layers[1].filename = "__smartchest__/graphics/entity/chest.png"
+chest_core.picture.layers[1].filename = "__smartchest__/graphics/entity/hr-chest.png"
 
 data:extend
 {
@@ -71,14 +71,13 @@ data:extend
 local steel_chest = table.deepcopy(data.raw["container"]["steel-chest"])
 
 local function create_chest(index, tint, is_core)
+	local chest_data                         = table.deepcopy(data.raw["linked-container"]["linked-chest"])
+	local name                               = "sc-chest-" .. index
+	local content_name                       = "sc-chest-with-content-" .. index
 
-	local chest_data   = table.deepcopy(data.raw["linked-container"]["linked-chest"])
-	local name         = "sc-chest-" .. index
-	local content_name = "sc-chest-with-content-" .. index
-
-	chest_data.name = name
-	chest_data.icon_size = 64
-	chest_data.icons = {
+	chest_data.name                          = name
+	chest_data.icon_size                     = 64
+	chest_data.icons                         = {
 		{
 			icon = "__smartchest__/graphics/icons/chest.png",
 		},
@@ -87,31 +86,31 @@ local function create_chest(index, tint, is_core)
 			tint = tint
 		}
 	}
-	chest_data.icon_mipmaps = 4
-	chest_data.inventory_size = settings.startup["sc-chest-slot-" .. index].value
+	chest_data.icon_mipmaps                  = 4
+	chest_data.inventory_size                = settings.startup["sc-chest-slot-" .. index].value
 
-	chest_data.allow_copy_paste = true
-	chest_data.minable = { hardness = 0.2, mining_time = 0.2, result = (use_generic and "sc-chest-core") or name }
-	chest_data.gui_mode = "none"
-	chest_data.inventory_type = "with_filters_and_bar"
+	chest_data.allow_copy_paste              = true
+	chest_data.minable                       = { hardness = 0.2, mining_time = 0.2, result = (use_generic and "sc-chest-core") or name }
+	chest_data.gui_mode                      = "none"
+	chest_data.inventory_type                = "with_filters_and_bar"
 
-	chest_data.circuit_connector_sprites = steel_chest.circuit_connector_sprites
+	chest_data.circuit_connector_sprites     = steel_chest.circuit_connector_sprites
 	chest_data.circuit_wire_connection_point = steel_chest.circuit_wire_connection_point
-	chest_data.circuit_wire_max_distance = steel_chest.circuit_wire_max_distance
+	chest_data.circuit_wire_max_distance     = steel_chest.circuit_wire_max_distance
 
-	chest_data.picture.layers[1].filename = "__smartchest__/graphics/entity/chest.png"
-	chest_data.picture.layers[1].hr_version.filename = "__smartchest__/graphics/entity/hr-chest.png"
+	-- chest_data.picture.layers[1].filename            = "__smartchest__/graphics/entity/chest.png"
+	chest_data.picture.layers[1].filename    = "__smartchest__/graphics/entity/hr-chest.png"
 
-	local color_layer = table.deepcopy(chest_data.picture.layers[1])
+	local color_layer                        = table.deepcopy(chest_data.picture.layers[1])
 	table.insert(chest_data.picture.layers, 2, color_layer)
+
+	-- color_layer.tint = tint
+	-- color_layer.apply_runtime_tint = true
+	---color_layer.filename = "__smartchest__/graphics/entity/chest-mask.png"
 
 	color_layer.tint = tint
 	color_layer.apply_runtime_tint = true
-	color_layer.filename = "__smartchest__/graphics/entity/chest-mask.png"
-
-	color_layer.hr_version.tint = tint
-	color_layer.hr_version.apply_runtime_tint = true
-	color_layer.hr_version.filename = "__smartchest__/graphics/entity/hr-chest-mask.png"
+	color_layer.filename = "__smartchest__/graphics/entity/hr-chest-mask.png"
 
 	-- log(serpent.block(chest_data))
 
@@ -134,7 +133,7 @@ local function create_chest(index, tint, is_core)
 			subgroup = "storage",
 			order = "s[mart-chest-" .. index .. "]",
 			place_result = name,
-			flags = { "hidden", "not-stackable" },
+			flags = { "not-stackable" },
 			stack_size = 1,
 			inventory_size = settings.startup["sc-chest-slot-" .. index].value,
 			extends_inventory_by_default = true
@@ -169,17 +168,16 @@ local function create_chest(index, tint, is_core)
 	end
 
 	if (not use_generic) then
-
 		table.insert(def, {
 			type = "recipe",
 			name = name,
 			enabled = false,
 			ingredients =
 			{
-				{ "iron-plate", 20 },
-				{ "steel-plate", 10 },
+				{ "iron-plate",         20 },
+				{ "steel-plate",        10 },
 				{ "electronic-circuit", 5 },
-				{ "copper-cable", 10 }
+				{ "copper-cable",       10 }
 			},
 			result = name
 		})
@@ -201,14 +199,14 @@ local function create_chest(index, tint, is_core)
 end
 
 local tints = {
-	{ 1, 0, 0, 1 },
-	{ 1, 0.5, 0, 1 },
-	{ 1, 1, 0, 1 },
-	{ 1, 0, 1, 1 },
-	{ 0, 1, 0, 1 },
-	{ 0.5, 0, 0.25, 1 },
-	{ 0, 0, 1, 1 },
-	{ 0, 1, 1, 1 }
+	{ 1,   0,   0,    1 },
+	{ 1,   0.5, 0,    1 },
+	{ 1,   1,   0,    1 },
+	{ 1,   0,   1,    1 },
+	{ 0,   1,   0,    1 },
+	{ 0.5, 0,   0.25, 1 },
+	{ 0,   0,   1,    1 },
+	{ 0,   1,   1,    1 }
 }
 
 local recipe_effects = {}
@@ -240,7 +238,7 @@ data:extend(
 				ingredients =
 				{
 					{ "automation-science-pack", 1 },
-					{ "logistic-science-pack", 1 }
+					{ "logistic-science-pack",   1 }
 				},
 				time = 10
 			},
@@ -256,13 +254,21 @@ local merge_tool = {
 	name = "sc-merge-tool",
 	icon = "__smartchest__/graphics/icons/merge-tool.png",
 	icon_size = 32,
-	selection_color = { r = 1, g = 0, b = 0 },
-	alt_selection_color = { r = 1, g = 1, b = 0 },
-	selection_mode = { "same-force", "buildable-type" },
-	alt_selection_mode = { "same-force", "buildable-type" },
+
+	select = {
+
+		border_color = { r = 1, g = 0, b = 0 },
+		mode = { "same-force", "buildable-type" },
+		cursor_box_type = "entity"
+	},
+	alt_select = {
+		mode = { "same-force", "buildable-type" },
+		border_color = { r = 1, g = 1, b = 0 },
+		cursor_box_type = "entity"
+	},
+
 	selection_cursor_box_type = "entity",
-	alt_selection_cursor_box_type = "entity",
-	flags = { "hidden", "not-stackable", "only-in-cursor", "spawnable" },
+	flags = { "not-stackable", "only-in-cursor", "spawnable" },
 	subgroup = "other",
 	stack_size = 1,
 	entity_filters = names,
@@ -282,22 +288,18 @@ data:extend
 		action = "spawn-item",
 		technology_to_unlock = "sc-chest",
 		item_to_spawn = "sc-merge-tool",
-		icon =
-		{
-			filename = "__smartchest__/graphics/icons/merge-tool-x32.png",
-			priority = "extra-high-no-scale",
-			size = 32,
-			scale = 1,
-			flags = { "gui-icon" }
-		},
-		small_icon =
-		{
-			filename = "__smartchest__/graphics/icons/merge-tool-x24.png",
-			priority = "extra-high-no-scale",
-			size = 24,
-			scale = 1,
-			flags = { "gui-icon" }
-		},
+		icons = {
+			{
+				icon = "__smartchest__/graphics/icons/merge-tool-x32.png",
+				icon_size = 32,
+				scale = 1
+			} },
+		small_icons =
+		{ {
+			icon = "__smartchest__/graphics/icons/merge-tool-x24.png",
+			icon_size = 24,
+			scale = 1
+		} },
 	},
 }
 
@@ -309,10 +311,10 @@ reader.item_slot_count = settings.startup["sc-reader-count"].value
 reader.minable = { hardness = 0.2, mining_time = 0.2, result = "sc-chest-reader" }
 
 for _, dir in pairs(reader.sprites) do
-	dir.layers[1].filename = "__smartchest__/graphics/entity/reader.png"
-	dir.layers[1].hr_version.filename = "__smartchest__/graphics/entity/hr-reader.png"
-	dir.layers[2].filename = "__smartchest__/graphics/entity/reader-shadow.png"
-	dir.layers[2].hr_version.filename = "__smartchest__/graphics/entity/hr-reader-shadow.png"
+	--dir.layers[1].filename = "__smartchest__/graphics/entity/reader.png"
+	dir.layers[1].filename = "__smartchest__/graphics/entity/hr-reader.png"
+	--dir.layers[2].filename = "__smartchest__/graphics/entity/reader-shadow.png"
+	dir.layers[2].filename = "__smartchest__/graphics/entity/hr-reader-shadow.png"
 end
 
 data:extend
@@ -334,15 +336,15 @@ data:extend
 		place_result = "sc-chest-reader"
 	}
 	, {
-		type = "recipe",
-		name = "sc-chest-reader",
-		enabled = false,
-		ingredients =
-		{
-			{ "iron-plate", 5 },
-			{ "electronic-circuit", 5 },
-			{ "copper-cable", 5 }
-		},
-		result = "sc-chest-reader"
-	}
+	type = "recipe",
+	name = "sc-chest-reader",
+	enabled = false,
+	ingredients =
+	{
+		{ type = "item", name = "iron-plate",         amount = 5 },
+		{ type = "item", name = "electronic-circuit", amount = 5 },
+		{ type = "item", name = "copper-cable",       amount = 5 }
+	},
+	results = { { type = "item", name = "sc-chest-reader", amount = 1 } }
+}
 }
