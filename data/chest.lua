@@ -174,12 +174,12 @@ local function create_chest(index, tint, is_core)
 			enabled = false,
 			ingredients =
 			{
-				{ "iron-plate",         20 },
-				{ "steel-plate",        10 },
-				{ "electronic-circuit", 5 },
-				{ "copper-cable",       10 }
+				{ type = "item", name = "iron-plate",         amount = 20 },
+				{ type = "item", name = "steel-plate",        amount = 10 },
+				{ type = "item", name = "electronic-circuit", amount = 5 },
+				{ type = "item", name = "copper-cable",       amount = 10 }
 			},
-			result = name
+			results = { { type = "item", name = name, amount = 1 } }
 		})
 
 		table.insert(def,
@@ -189,9 +189,9 @@ local function create_chest(index, tint, is_core)
 				enabled = false,
 				ingredients =
 				{
-					{ "sc-chest-core", 1 }
+					{ type = "item", name = "sc-chest-core", amount = 1 }
 				},
-				result = name
+				results = { { type = "item", name = name, amount = 1 } }
 			})
 	end
 
